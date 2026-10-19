@@ -1,40 +1,25 @@
 # gh-aw: failing check verdict versus failing workflow job
 
-Minimal local reproduction for a gh-aw `create_check_run` with an **intentional** `failure` verdict. The expected result is a successful workflow run, a failing business-rule check, and **no** `[aw] Failed jobs` issue. An issue about an execution failure would be misleading in that case.
+Reproduction for a gh-aw `create_check_run` with an **intentional** `failure` verdict. The correct behavior is a successful workflow run, a failing business-rule check, and **no** `[aw] Failed jobs` issue. Older gh-aw versions may incorrectly report the check verdict as an execution failure.
 
-This repository is **local only**. It has no GitHub remote. Merely compiling the workflow does not run it or create a GitHub issue. Publishing this repository, dispatching its workflow, and filing an upstream issue each require separate approval.
+The repository is now published for the approved PR-triggered experiment. An upstream `github/gh-aw` issue is **not** authorized and must not be filed without separate approval.
 
 ## Files
 
 - [`.github/workflows/expected-verdict.md`](.github/workflows/expected-verdict.md): gh-aw source. Manual `verdict` input defaults to `failure`; `success` is the control case. The agent is instructed to submit one check-run safe output and no issue.
-- [`.github/workflows/expected-verdict.lock.yml`](.github/workflows/expected-verdict.lock.yml): compiled locally with gh-aw **v0.88.7**; generated file, do not hand-edit. The pre-fix failed-job reporter stays at its default of **enabled**, as in copilot-intellij.
-- [`.github/aw/actions-lock.json`](.github/aw/actions-lock.json): generated action-pin metadata for the same compiler version.
-- [`ISSUE-DRAFT.md`](ISSUE-DRAFT.md): conditional upstream report draft. Check the latest version before publishing it.
+- [`.github/workflows/expected-verdict.lock.yml`](.github/workflows/expected-verdict.lock.yml): existing manual-dispatch workflow compiled with **v0.92.0**; its default failed-job reporter uses the corrected job-ID selection.
+- [`.github/workflows/pr-verdict-v08710.md`](.github/workflows/pr-verdict-v08710.md): the PR-triggered negative verdict test, targeting the PR number like the original evidence gate.
+- [`.github/workflows/pr-verdict-v08710.lock.yml`](.github/workflows/pr-verdict-v08710.lock.yml): compiled with the separately downloaded, checksum-verified **v0.87.10** binary. Its reporter uses the pre-fix job-list selection.
+- [`.github/aw/actions-lock.json`](.github/aw/actions-lock.json): generated action-pin metadata for v0.87.10. The existing v0.92.0 workflow's own lockfile still pins its setup action independently.
 
 The minimal source mirrors the relevant copilot-intellij settings: it enables `create-check-run`, sets `report-failure-as-issue: false`, and **omits** `report-failed-jobs` (whose default is enabled). It omits unrelated `noop`, missing-tool, missing-data and incomplete controls rather than changing them explicitly. No `create-issue` tool is enabled; if the agent fails or invokes a fallback instead of creating the requested check, that run is inconclusive. The compiled `conclusion` job receives `issues: write` for the default failed-job reporter.
 
-## Local validation already performed
+## Validation and versions
 
-```sh
-gh aw version              # v0.88.7
-gh aw compile expected-verdict --no-check-update
-# Compiled 1 workflow: 1 succeeded, 0 warnings
-```
+The manual `expected-verdict` run [39221800883](https://github.com/FluoriteCafe-work/ghaw-checks-failure-repro/actions/runs/39221800883) used **v0.92.0**: the workflow succeeded, its `Expected Verdict` check failed, and no failure issue was created. This is the corrected behavior.
 
-No GitHub Actions run has been performed. No observed outcome from this *new* repository is claimed yet.
+The PR-triggered `pr-verdict-v08710` workflow uses the official gh-aw **v0.87.10** Windows binary. Its SHA-256 matches the release checksums: `992f9a423ca69ceeb6f8772d8e2d3712c7d32ce4b59aa120ed2db6eed55fe894`. The binary stays under ignored `.tools/` and is not committed. Compilation produced **1 success, 0 warnings**. The generated lockfile records `compiler_version: v0.87.10`, pins the `v0.87.10` setup action, has `GH_AW_REPORT_FAILED_JOBS: "true"`, and does **not** have the newer `GH_AW_JOB_RESULTS` selection input.
 
-## Live comparison (only after permission to publish and run)
-
-1. Publish this local test repository only after separate approval. Confirm that Actions and GitHub Copilot requests are available. Push the source and generated lockfile. Do not enable branch protection or other issue-writing automations in the test repository.
-2. Dispatch the compiled `expected-verdict.lock.yml` with `verdict=success` (control), then `verdict=failure`. For example, after setting a real `OWNER/REPO`:
-
-   ```sh
-   gh workflow run expected-verdict.lock.yml --repo OWNER/REPO -f verdict=success
-   gh workflow run expected-verdict.lock.yml --repo OWNER/REPO -f verdict=failure
-   ```
-
-   Wait for each run's `conclusion` job before inspecting its results. Check the run conclusion, the check named `Expected Verdict`, the `safe_outputs` and `conclusion` jobs, and any newly opened `[aw] Failed jobs` issue. An agent, safe-output, or infrastructure failure makes that run inconclusive; repeat rather than calling it a verdict-only reproduction.
-3. With an **updated gh-aw compiler at v0.92.0 or later**, recompile the *same* `.md` source and publish the regenerated lockfile. Confirm its `Report failed jobs` step uses `GH_AW_JOB_RESULTS: ${{ toJSON(needs) }}`. Dispatch the same success/failure inputs and compare. Do not assume `--action-tag` upgrades the compiler: that flag only controls the action reference used by compilation.
-4. Record both compiler versions, source/lock commit SHAs, run URLs, check-run URLs, issue URLs (if any), and the `Report failed jobs` step's outcome in [`ISSUE-DRAFT.md`](ISSUE-DRAFT.md). Ask for a separate approval before publishing any upstream issue.
+Opening a same-repository PR into `main` triggers the old workflow automatically. Verify that `agent`, `detection`, `safe_outputs`, and `conclusion` succeed; the `PR Verdict (v0.87.10)` check fails; and the reporter does or does not create a `[aw] Failed jobs` issue. An agent or safe-output execution failure makes the run inconclusive for the verdict-only comparison. Record the PR, run, check, and issue links (if any) before claiming an old-versus-new result. No comments and no upstream issue should be posted as part of this verification.
 
 **Known history:** [copilot-intellij #18411](https://github.com/microsoft/copilot-intellij/issues/18411) was generated by a v0.87.10 workflow whose [run](https://github.com/microsoft/copilot-intellij/actions/runs/39194093181) succeeded while its `PR Evidence Gate (Result)` check failed. Upstream [#66632](https://github.com/github/gh-aw/pull/66632) changed reporter selection to use the real job IDs in `needs` and is already present in v0.92.0. This may have fixed the misclassification; the live comparison is designed to verify rather than presume that.
